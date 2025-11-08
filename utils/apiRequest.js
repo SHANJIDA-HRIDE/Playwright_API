@@ -1,27 +1,27 @@
 // utils/apiRequest.js
 import { expect, test as base } from '@playwright/test';
 
-// Extend the Playwright test fixture
+// ✅ Export expect too, so test files can import it together
+export { expect };
+
 export const test = base.extend({
   apiRequest: async ({ request }, use, testInfo) => {
-    // Wrap the original request object
     const wrappedRequest = {};
 
-    // List of methods we want to wrap
     ['get', 'post', 'put', 'delete', 'patch'].forEach((method) => {
       wrappedRequest[method] = async (url, options = {}) => {
         // Attach request body if exists
         if (options.data) {
           await testInfo.attach(`[${method.toUpperCase()}] Request: ${url}`, {
-            body: JSON.stringify(options.data),
+            body: JSON.stringify(options.data, null, 2),
             contentType: 'application/json',
           });
         }
 
-        // Send actual request
+        // Perform request
         const response = await request[method](url, options);
 
-        // Clone response body safely
+        // Attach response body
         let body;
         try {
           body = await response.json();
@@ -29,7 +29,6 @@ export const test = base.extend({
           body = await response.text();
         }
 
-        // Attach response body
         await testInfo.attach(`[${method.toUpperCase()}] Response: ${url}`, {
           body: typeof body === 'string' ? body : JSON.stringify(body, null, 2),
           contentType: 'application/json',
@@ -39,6 +38,6 @@ export const test = base.extend({
       };
     });
 
-    await use(wrappedRequest); // pass wrapped request to tests
+    await use(wrappedRequest);
   },
 });

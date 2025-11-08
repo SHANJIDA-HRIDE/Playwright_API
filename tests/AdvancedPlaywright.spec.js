@@ -1,10 +1,10 @@
-// tests/gorest.spec.js
-import { test, expect } from '../utils/apiRequest.js'; // ✅ use wrapped test
+// tests/AdvancedPlaywright.spec.js
+import { test, expect } from '../utils/apiRequest.js';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-const BASE_URL = process.env.BASE_URL;
+const BASE_URL = process.env.BASE_URL || 'https://gorest.co.in/public/v2';
 const TOKEN = process.env.TOKEN;
 
 if (!TOKEN) throw new Error('❌ TOKEN is missing. Please add it to your .env file.');
@@ -19,16 +19,16 @@ test.describe('GoRest API CRUD Tests (Auto Allure Attachment)', () => {
   let createdUserEmail;
 
   test.beforeAll(async ({ apiRequest }) => {
-    const timestamp = Date.now();
     const newUser = {
       name: 'Sanjida QA',
       gender: 'female',
-      email: `sqa_${timestamp}@example.com`,
+      email: `sqa_${Date.now()}@example.com`,
       status: 'active',
     };
 
     const res = await apiRequest.post(`${BASE_URL}/users`, { headers: authHeaders, data: newUser });
     expect(res.status()).toBe(201);
+
     const body = await res.json();
     createdUserId = body.id;
     createdUserEmail = body.email;

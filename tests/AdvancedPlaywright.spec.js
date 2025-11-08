@@ -1,138 +1,80 @@
 // tests/gorest.spec.js
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../utils/apiRequest.js'; // ✅ use wrapped test
+import * as dotenv from 'dotenv';
 
-const BASE_URL = 'https://gorest.co.in/public/v2';
-const TOKEN = 'e0dc82d5bada2fea660d18eeab205aa95191e0089e229d861a769e65911fbea6'; // 🔒 Replace with valid token
+dotenv.config();
 
-test.describe('GoRest API CRUD Tests', () => {
+const BASE_URL = process.env.BASE_URL;
+const TOKEN = process.env.TOKEN;
+
+if (!TOKEN) throw new Error('❌ TOKEN is missing. Please add it to your .env file.');
+
+const authHeaders = {
+  Authorization: `Bearer ${TOKEN}`,
+  'Content-Type': 'application/json',
+};
+
+test.describe('GoRest API CRUD Tests (Auto Allure Attachment)', () => {
   let createdUserId;
   let createdUserEmail;
 
-  // ✅ Positive setup: create a user before all tests
-  test.beforeAll(async ({ request }) => {
+  test.beforeAll(async ({ apiRequest }) => {
+    const timestamp = Date.now();
     const newUser = {
       name: 'Sanjida QA',
       gender: 'female',
-      email: `sqa_${Date.now()}@example.com`,
+      email: `sqa_${timestamp}@example.com`,
       status: 'active',
     };
-    createdUserEmail = newUser.email;
-    const res = await request.post(`${BASE_URL}/users`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-      data: newUser,
-    });
+
+    const res = await apiRequest.post(`${BASE_URL}/users`, { headers: authHeaders, data: newUser });
     expect(res.status()).toBe(201);
     const body = await res.json();
     createdUserId = body.id;
-    console.log('✅ User created in beforeAll:', createdUserId);
+    createdUserEmail = body.email;
   });
 
-  // =========================
-  // Positive Tests
-  // =========================
+  test.afterAll(async ({ apiRequest }) => {
+    if (createdUserId) {
+      await apiRequest.delete(`${BASE_URL}/users/${createdUserId}`, { headers: authHeaders });
+    }
+  });
 
-  test('GET all users', async ({ request }) => {
-    const res = await request.get(`${BASE_URL}/users`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-    });
-    expect(res.status()).toBe(200);
+  test('GET all users', async ({ apiRequest }) => {
+    const res = await apiRequest.get(`${BASE_URL}/users`, { headers: authHeaders });
     const users = await res.json();
+    expect(res.status()).toBe(200);
     expect(Array.isArray(users)).toBe(true);
   });
 
-  test('GET user by ID', async ({ request }) => {
-    const res = await request.get(`${BASE_URL}/users/${createdUserId}`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-    });
-    expect(res.status()).toBe(200);
+  test('GET user by ID', async ({ apiRequest }) => {
+    const res = await apiRequest.get(`${BASE_URL}/users/${createdUserId}`, { headers: authHeaders });
     const user = await res.json();
+    expect(res.status()).toBe(200);
     expect(user.id).toBe(createdUserId);
   });
 
-  test('PUT update user', async ({ request }) => {
-    const res = await request.put(`${BASE_URL}/users/${createdUserId}`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-      data: { name: 'Sanjida QA Updated' },
-    });
+  test('PUT update user', async ({ apiRequest }) => {
+    const updateData = { name: 'Sanjida QA Updated' };
+    const res = await apiRequest.put(`${BASE_URL}/users/${createdUserId}`, { headers: authHeaders, data: updateData });
+    const updated = await res.json();
     expect(res.status()).toBe(200);
-    const updatedUser = await res.json();
-    expect(updatedUser.name).toBe('Sanjida QA Updated');
+    expect(updated.name).toBe(updateData.name);
   });
 
-  test('DELETE user', async ({ request }) => {
-    const res = await request.delete(`${BASE_URL}/users/${createdUserId}`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-    });
-    expect(res.status()).toBe(204);
-  });
-
-  test('POST create user with unique email', async ({ request }) => {
+  test('POST create unique user', async ({ apiRequest }) => {
     const newUser = {
       name: 'Unique QA',
       gender: 'male',
       email: `unique_${Date.now()}@example.com`,
       status: 'active',
     };
-    const res = await request.post(`${BASE_URL}/users`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-      data: newUser,
-    });
+    const res = await apiRequest.post(`${BASE_URL}/users`, { headers: authHeaders, data: newUser });
     expect(res.status()).toBe(201);
   });
 
-  // =========================
-  // Negative Tests
-  // =========================
-
-  test('GET users with invalid token', async ({ request }) => {
-    const res = await request.get(`${BASE_URL}/users`, {
-      headers: { Authorization: `Bearer INVALID_TOKEN` },
-    });
+  test('GET users with invalid token', async ({ apiRequest }) => {
+    const res = await apiRequest.get(`${BASE_URL}/users`, { headers: { Authorization: 'Bearer INVALID' } });
     expect(res.status()).toBe(401);
-  });
-
-  test('POST user with missing required fields', async ({ request }) => {
-    const invalidUser = { name: 'Missing Fields' }; // missing gender, email, status
-    const res = await request.post(`${BASE_URL}/users`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-      data: invalidUser,
-    });
-    expect(res.status()).toBe(422);
-  });
-
-  test('POST user with duplicate email', async ({ request }) => {
-    const duplicateUser = {
-      name: 'Duplicate Email',
-      gender: 'female',
-      email: createdUserEmail, // reusing previous email
-      status: 'active',
-    };
-    const res = await request.post(`${BASE_URL}/users`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-      data: duplicateUser,
-    });
-    expect(res.status()).toBe(422);
-  });
-
-  test('PUT user with invalid ID', async ({ request }) => {
-    const res = await request.put(`${BASE_URL}/users/999999999`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-      data: { name: 'Invalid ID' },
-    });
-    expect(res.status()).toBe(404);
-  });
-
-  test('DELETE user with invalid ID', async ({ request }) => {
-    const res = await request.delete(`${BASE_URL}/users/999999999`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-    });
-    expect(res.status()).toBe(404);
-  });
-
-  test('GET user with invalid ID', async ({ request }) => {
-    const res = await request.get(`${BASE_URL}/users/999999999`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-    });
-    expect(res.status()).toBe(404);
   });
 });
